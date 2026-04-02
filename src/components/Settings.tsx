@@ -54,9 +54,23 @@ export function Settings({ onClose }: SettingsProps) {
     }
   };
 
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState("");
+
   const handleSave = () => {
+    if (!config.api_key.trim()) {
+      setError("API key is required");
+      return;
+    }
+    if (!config.base_url.trim()) {
+      setError("Base URL is required");
+      return;
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    onClose();
+    setSaveSuccess(true);
+    setTimeout(() => {
+      onClose();
+    }, 800);
   };
 
   return (
@@ -104,9 +118,10 @@ export function Settings({ onClose }: SettingsProps) {
               <input
                 type="text"
                 value={config.base_url}
-                onChange={(e) =>
-                  setConfig((c) => ({ ...c, base_url: e.target.value }))
-                }
+                onChange={(e) => {
+                  setConfig((c) => ({ ...c, base_url: e.target.value }));
+                  setError("");
+                }}
                 placeholder="https://api.example.com"
                 className="mt-2 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
@@ -120,9 +135,10 @@ export function Settings({ onClose }: SettingsProps) {
             <input
               type="password"
               value={config.api_key}
-              onChange={(e) =>
-                setConfig((c) => ({ ...c, api_key: e.target.value }))
-              }
+              onChange={(e) => {
+                setConfig((c) => ({ ...c, api_key: e.target.value }));
+                setError("");
+              }}
               placeholder="Enter your API key"
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
@@ -144,6 +160,12 @@ export function Settings({ onClose }: SettingsProps) {
           </div>
         </div>
 
+        {error && (
+          <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onClose}
@@ -153,9 +175,10 @@ export function Settings({ onClose }: SettingsProps) {
           </button>
           <button
             onClick={handleSave}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            disabled={saveSuccess}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-green-600"
           >
-            Save
+            {saveSuccess ? "Saved!" : "Save"}
           </button>
         </div>
       </div>

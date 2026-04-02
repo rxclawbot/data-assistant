@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AiConfig, SqlGenerationRequest, api } from "../lib/api";
 
 interface SqlGeneratorProps {
@@ -29,6 +29,10 @@ export function SqlGenerator({ tablesContext, onGeneratedSql }: SqlGeneratorProp
 
   const isDisabled = !query.trim() || !tablesContext.trim();
 
+  useEffect(() => {
+    setError("");
+  }, [query]);
+
   const handleGenerate = async () => {
     const config = loadConfig();
     if (!config) {
@@ -38,6 +42,7 @@ export function SqlGenerator({ tablesContext, onGeneratedSql }: SqlGeneratorProp
 
     setLoading(true);
     setError("");
+    setGeneratedSql("");
 
     try {
       const request: SqlGenerationRequest = {
