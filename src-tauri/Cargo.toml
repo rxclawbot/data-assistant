@@ -22,7 +22,7 @@ tokio = { version = "1", features = ["full"] }
 thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-windows = { version = "0.58", features = ["Win32_Security_Cryptography"] }
+windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_System_Memory", "Win32_Foundation"] }
 
 [features]
 default = ["custom-protocol"]
