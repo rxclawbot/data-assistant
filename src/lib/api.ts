@@ -23,7 +23,7 @@ export interface SqlGenerationResponse { sql: string; explanation?: string; }
 export const api = {
   testConnection: (config: ConnectionConfig) => invoke<boolean>("test_connection", { config }),
   getTables: (config: ConnectionConfig) => invoke<TableInfo[]>("get_tables", { config }),
-  getTableMetadata: (config: ConnectionConfig, tableName: string) => invoke<TableMetadata>("get_table_metadata", { config, tableName }),
+  getTableMetadata: (config: ConnectionConfig, tableName: string) => invoke<TableMetadata>("get_table_metadata", { config, table_name: tableName }),
   saveConnection: (config: ConnectionConfig) => invoke<void>("save_connection", { config }),
   loadConnections: () => invoke<ConnectionConfig[]>("load_connections"),
   deleteConnection: (id: string) => invoke<void>("delete_connection", { id }),

@@ -152,22 +152,24 @@ fn get_mysql_table_metadata(
                  ORDER BY ORDINAL_POSITION";
 
     let result = conn.exec_map(query, (&config.database, table_name), |mut row: mysql::Row| {
-        let name: String = row.take("COLUMN_NAME").unwrap();
-        let data_type: String = row.take("DATA_TYPE").unwrap();
-        let nullable: String = row.take("IS_NULLABLE").unwrap();
-        let key_type: String = row.take("COLUMN_KEY").unwrap_or_default();
-        let default_value: Option<String> = row.take("COLUMN_DEFAULT");
-        let char_max_len: Option<u32> = row.take("CHARACTER_MAXIMUM_LENGTH");
-        let num_precision: Option<u32> = row.take("NUMERIC_PRECISION");
-        let num_scale: Option<u32> = row.take("NUMERIC_SCALE");
+        // Positional access: COLUMN_NAME=0, DATA_TYPE=1, IS_NULLABLE=2, COLUMN_KEY=3,
+        // COLUMN_DEFAULT=4, CHARACTER_MAXIMUM_LENGTH=5, NUMERIC_PRECISION=6, NUMERIC_SCALE=7
+        let name: String = row.take(0).unwrap_or_default();
+        let data_type: String = row.take(1).unwrap_or_default();
+        let nullable: String = row.take(2).unwrap_or_default();
+        let key_type: Option<String> = row.take(3);
+        let default_value: Option<String> = row.take(4);
+        let char_max_len: Option<u32> = row.take(5);
+        let num_precision: Option<u32> = row.take(6);
+        let num_scale: Option<u32> = row.take(7);
         ColumnInfo {
             name,
             data_type,
             nullable: nullable == "YES",
-            key_constraint: match key_type.as_str() {
-                "PRI" => Some("PK".to_string()),
-                "UNI" => Some("UK".to_string()),
-                "MUL" => Some("FK".to_string()),
+            key_constraint: match key_type.as_deref() {
+                Some("PRI") => Some("PK".to_string()),
+                Some("UNI") => Some("UK".to_string()),
+                Some("MUL") => Some("FK".to_string()),
                 _ => None,
             },
             default_value,
