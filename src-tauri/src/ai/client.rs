@@ -1,5 +1,6 @@
 use reqwest::Client;
 use serde_json::json;
+use std::time::Duration;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AiConfig {
@@ -25,7 +26,10 @@ pub async fn generate_sql(
     tables_context: &str,
     user_query: &str,
 ) -> Result<SqlGenerationResponse, String> {
-    let client = Client::new();
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
 
     let system_prompt = format!(
@@ -60,16 +64,25 @@ pub async fn generate_sql(
 
     if !response.status().is_success() {
         let status = response.status();
-        let text = response.text().await.unwrap_or_default();
+        let text = response.text().await
+            .map_err(|e| format!("Failed to read error response: {}", e))?;
         return Err(format!("API error {}: {}", status, text));
     }
 
     let parsed: serde_json::Value = response.json().await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-    let sql = parsed["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or("Invalid response format")?
+    // Validate response structure
+    let choices = parsed["choices"].as_array()
+        .ok_or("Response missing 'choices' array")?;
+    let first_choice = choices.first()
+        .ok_or("Response 'choices' array is empty")?;
+    let message = first_choice.get("message")
+        .ok_or("Response missing 'message' object")?;
+    let content = message.get("content")
+        .ok_or("Response missing 'content' field")?;
+    let sql = content.as_str()
+        .ok_or("Response 'content' is not a string")?
         .trim()
         .to_string();
 
