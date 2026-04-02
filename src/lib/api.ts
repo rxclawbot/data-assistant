@@ -7,7 +7,7 @@ export interface ConnectionConfig {
   host: string;
   port: number;
   username: string;
-  password: string;
+  password_encrypted: number[];
   database: string;
   oracle_sid?: string;
   oracle_service_name?: string;
@@ -28,4 +28,5 @@ export const api = {
   loadConnections: () => invoke<ConnectionConfig[]>("load_connections"),
   deleteConnection: (id: string) => invoke<void>("delete_connection", { id }),
   generateSql: (config: AiConfig, request: SqlGenerationRequest) => invoke<SqlGenerationResponse>("generate_sql", { config, request }),
+  encryptPassword: (password: string) => invoke<number[]>("encrypt_password_command", { password }),
 };

@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use mysql::prelude::Queryable;
+use tauri::Manager;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DatabaseType {
     Oracle,
     MySQL,
@@ -105,8 +107,8 @@ fn test_mysql_connection(config: &ConnectionConfig, password: &str) -> Result<bo
 
     Pool::new(opts)
         .map(|pool| {
-            pool.get_conn().map(|conn| {
-                conn.close().ok();
+            pool.get_conn().map(|_conn| {
+                // Connection successful; pool manages connection lifecycle
                 true
             }).map_err(|e| format!("MySQL query failed: {}", e))
         })
@@ -140,11 +142,8 @@ fn get_oracle_tables(config: &ConnectionConfig, password: &str) -> Result<Vec<Ta
         .map_err(|e| format!("Oracle connection failed: {}", e))?;
 
     let mut tables = Vec::new();
-    let mut stmt = conn
-        .prepare("SELECT owner, table_name FROM all_tables WHERE owner = :owner ORDER BY owner, table_name")
-        .map_err(|e| format!("Failed to prepare statement: {}", e))?;
-
-    let rows = stmt.query([&config.username.to_uppercase()])
+    let sql = "SELECT owner, table_name FROM all_tables WHERE owner = :owner ORDER BY owner, table_name";
+    let rows = conn.query(sql, &[&config.username.to_uppercase()])
         .map_err(|e| format!("Failed to query tables: {}", e))?;
 
     for row_result in rows {
@@ -178,17 +177,16 @@ fn get_mysql_tables(config: &ConnectionConfig, password: &str) -> Result<Vec<Tab
         .db_name(Some(&config.database));
 
     let pool = Pool::new(opts).map_err(|e| format!("MySQL connection failed: {}", e))?;
-    let conn = pool.get_conn().map_err(|e| format!("Failed to get connection: {}", e))?;
+    let mut conn = pool.get_conn().map_err(|e| format!("Failed to get connection: {}", e))?;
 
     let query = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME";
-    let result = conn.query_map(query, [&config.database], |name: String| {
+    let result = conn.exec_map(query, (&config.database,), |name: String| {
         TableInfo {
             name,
             owner: None,
         }
     }).map_err(|e| format!("Failed to query tables: {}", e))?;
 
-    conn.close().ok();
     Ok(result)
 }
 
@@ -232,4 +230,87 @@ pub async fn delete_connection(id: String) -> Result<(), String> {
     let mut connections = load_connections_from_file();
     connections.retain(|c| c.id != id);
     save_connections_to_file(&connections)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_oracle_conn_str_service_name() {
+        let config = ConnectionConfig {
+            id: "1".to_string(),
+            name: "Test".to_string(),
+            db_type: DatabaseType::Oracle,
+            host: "localhost".to_string(),
+            port: 1521,
+            username: "user".to_string(),
+            password_encrypted: vec![],
+            database: "db".to_string(),
+            oracle_sid: None,
+            oracle_service_name: Some("myservice".to_string()),
+        };
+        let conn_str = build_oracle_conn_str(&config);
+        assert_eq!(conn_str, "//localhost:1521/myservice");
+    }
+
+    #[test]
+    fn test_build_oracle_conn_str_sid() {
+        let config = ConnectionConfig {
+            id: "1".to_string(),
+            name: "Test".to_string(),
+            db_type: DatabaseType::Oracle,
+            host: "dbhost".to_string(),
+            port: 1521,
+            username: "user".to_string(),
+            password_encrypted: vec![],
+            database: "ORCL".to_string(),
+            oracle_sid: Some("ORCL".to_string()),
+            oracle_service_name: None,
+        };
+        let conn_str = build_oracle_conn_str(&config);
+        assert_eq!(conn_str, "//dbhost:1521/ORCL");
+    }
+
+    #[test]
+    fn test_build_oracle_conn_str_fallback_to_database() {
+        let config = ConnectionConfig {
+            id: "1".to_string(),
+            name: "Test".to_string(),
+            db_type: DatabaseType::Oracle,
+            host: "dbhost".to_string(),
+            port: 1521,
+            username: "user".to_string(),
+            password_encrypted: vec![],
+            database: "defaultdb".to_string(),
+            oracle_sid: None,
+            oracle_service_name: None,
+        };
+        let conn_str = build_oracle_conn_str(&config);
+        assert_eq!(conn_str, "//dbhost:1521/defaultdb");
+    }
+
+    #[test]
+    fn test_connection_config_serde_roundtrip() {
+        let config = ConnectionConfig {
+            id: "test-id".to_string(),
+            name: "My Oracle".to_string(),
+            db_type: DatabaseType::Oracle,
+            host: "localhost".to_string(),
+            port: 1521,
+            username: "system".to_string(),
+            password_encrypted: vec![1, 2, 3, 4],
+            database: "ORCL".to_string(),
+            oracle_sid: Some("ORCL".to_string()),
+            oracle_service_name: None,
+        };
+        let json = serde_json::to_string(&config).expect("serialize failed");
+        let deserialized: ConnectionConfig = serde_json::from_str(&json).expect("deserialize failed");
+        assert_eq!(deserialized.id, config.id);
+        assert_eq!(deserialized.name, config.name);
+        assert_eq!(deserialized.db_type, config.db_type);
+        assert_eq!(deserialized.host, config.host);
+        assert_eq!(deserialized.port, config.port);
+        assert_eq!(deserialized.password_encrypted, vec![1, 2, 3, 4]);
+    }
 }

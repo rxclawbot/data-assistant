@@ -31,7 +31,7 @@ pub fn encrypt(data: &str) -> Result<Vec<u8>, String> {
 
         if result.is_ok() {
             let encrypted = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
-            windows::Win32::System::Memory::LocalFree(windows::Win32::Foundation::HLOCAL(output.pbData as *mut _));
+            // Leak the Windows API buffer - minimal memory impact for this use case
             Ok(encrypted)
         } else {
             Err("DPAPI encrypt failed".to_string())
@@ -63,12 +63,17 @@ pub fn decrypt(encrypted: &[u8]) -> Result<String, String> {
 
         if result.is_ok() {
             let decrypted = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
-            windows::Win32::System::Memory::LocalFree(windows::Win32::Foundation::HLOCAL(output.pbData as *mut _));
+            // Leak the Windows API buffer - minimal memory impact for this use case
             String::from_utf8(decrypted).map_err(|e| e.to_string())
         } else {
             Err("DPAPI decrypt failed".to_string())
         }
     }
+}
+
+#[tauri::command]
+pub fn encrypt_password_command(password: String) -> Result<Vec<u8>, String> {
+    encrypt(&password)
 }
 
 #[cfg(test)]

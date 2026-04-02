@@ -2,23 +2,40 @@ import { useState } from "react";
 import { ConnectionConfig, api } from "../lib/api";
 
 interface ConnectionFormProps {
+  initialData?: ConnectionConfig;
   onSave: (config: ConnectionConfig) => Promise<void>;
   onTest: (config: ConnectionConfig) => Promise<boolean>;
   onCancel: () => void;
 }
 
-function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
-  const [form, setForm] = useState<Partial<ConnectionConfig>>({
-    name: "",
-    db_type: "Oracle",
-    host: "localhost",
-    port: 1521,
-    username: "",
-    password: "",
-    database: "",
-    oracle_sid: "",
-    oracle_service_name: "",
-  });
+function ConnectionForm({ initialData, onSave, onTest, onCancel }: ConnectionFormProps) {
+  const isEditing = !!initialData;
+
+  type FormState = Omit<Partial<ConnectionConfig>, "password_encrypted"> & { password?: string };
+  const [form, setForm] = useState<FormState>(
+    initialData
+      ? {
+          name: initialData.name,
+          db_type: initialData.db_type,
+          host: initialData.host,
+          port: initialData.port,
+          username: initialData.username,
+          database: initialData.database,
+          oracle_sid: initialData.oracle_sid || "",
+          oracle_service_name: initialData.oracle_service_name || "",
+        }
+      : {
+          name: "",
+          db_type: "Oracle",
+          host: "localhost",
+          port: 1521,
+          username: "",
+          password: "",
+          database: "",
+          oracle_sid: "",
+          oracle_service_name: "",
+        }
+  );
   const [password, setPassword] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<boolean | null>(null);
@@ -37,7 +54,7 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
     setTesting(true);
     setTestResult(null);
     try {
-      const config = buildConfig();
+      const config = await buildConfig();
       const result = await onTest(config);
       setTestResult(result);
     } catch {
@@ -50,7 +67,7 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const config = buildConfig();
+      const config = await buildConfig();
       await onSave(config);
       resetForm();
     } finally {
@@ -58,8 +75,16 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
     }
   };
 
-  const buildConfig = (): ConnectionConfig => {
-    const id = crypto.randomUUID();
+  const buildConfig = async (): Promise<ConnectionConfig> => {
+    const id = initialData?.id || crypto.randomUUID();
+    let encrypted: number[];
+    if (password) {
+      encrypted = await api.encryptPassword(password);
+    } else if (initialData?.password_encrypted) {
+      encrypted = initialData.password_encrypted;
+    } else {
+      encrypted = await api.encryptPassword("");
+    }
     return {
       id,
       name: form.name || "",
@@ -67,7 +92,7 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
       host: form.host || "",
       port: form.port || (form.db_type === "Oracle" ? 1521 : 3306),
       username: form.username || "",
-      password: password,
+      password_encrypted: encrypted,
       database: form.database || "",
       oracle_sid: form.oracle_sid,
       oracle_service_name: form.oracle_service_name,
@@ -81,7 +106,6 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
       host: "localhost",
       port: 1521,
       username: "",
-      password: "",
       database: "",
       oracle_sid: "",
       oracle_service_name: "",
@@ -92,7 +116,9 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-6">
-      <h2 className="text-lg font-semibold mb-4">Add Connection</h2>
+      <h2 className="text-lg font-semibold mb-4">
+        {isEditing ? "Edit Connection" : "Add Connection"}
+      </h2>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1">Connection Name</label>
@@ -145,7 +171,9 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Password</label>
+          <label className="block text-sm font-medium mb-1">
+            Password {isEditing && "(leave blank to keep current)"}
+          </label>
           <input
             type="password"
             className="w-full border rounded px-3 py-2"
@@ -207,7 +235,7 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
           disabled={saving || !form.name || !form.host || !form.username}
           className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 ml-auto"
         >
-          {saving ? "Saving..." : "Save Connection"}
+          {saving ? "Saving..." : isEditing ? "Update Connection" : "Save Connection"}
         </button>
         <button
           onClick={onCancel}
@@ -222,11 +250,12 @@ function ConnectionForm({ onSave, onTest, onCancel }: ConnectionFormProps) {
 
 interface ConnectionCardProps {
   connection: ConnectionConfig;
+  onEdit: (connection: ConnectionConfig) => void;
   onDelete: (id: string) => Promise<void>;
   onConnect: (connection: ConnectionConfig) => void;
 }
 
-function ConnectionCard({ connection, onDelete, onConnect }: ConnectionCardProps) {
+function ConnectionCard({ connection, onEdit, onDelete, onConnect }: ConnectionCardProps) {
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -255,6 +284,12 @@ function ConnectionCard({ connection, onDelete, onConnect }: ConnectionCardProps
           Connect
         </button>
         <button
+          onClick={() => onEdit(connection)}
+          className="px-3 py-1 bg-yellow-500 text-white text-sm rounded hover:bg-yellow-600"
+        >
+          Edit
+        </button>
+        <button
           onClick={handleDelete}
           disabled={deleting}
           className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
@@ -275,25 +310,60 @@ interface ConnectionManagerProps {
 }
 
 export function ConnectionManager({ connections, onSelect, onSave, onDelete, onReload }: ConnectionManagerProps) {
+  const [editingConnection, setEditingConnection] = useState<ConnectionConfig | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
   const handleTest = async (config: ConnectionConfig): Promise<boolean> => {
     return api.testConnection(config);
+  };
+
+  const handleEdit = (connection: ConnectionConfig) => {
+    setEditingConnection(connection);
+    setShowForm(true);
+  };
+
+  const handleCancel = () => {
+    setEditingConnection(null);
+    setShowForm(false);
+  };
+
+  const handleSave = async (config: ConnectionConfig) => {
+    await onSave(config);
+    handleCancel();
   };
 
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold">Connection Manager</h1>
-        {onReload && (
-          <button
-            onClick={onReload}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50"
-          >
-            Refresh
-          </button>
-        )}
+        <div className="flex gap-2">
+          {onReload && (
+            <button
+              onClick={onReload}
+              className="px-3 py-1 text-sm border rounded hover:bg-gray-50"
+            >
+              Refresh
+            </button>
+          )}
+          {!showForm && (
+            <button
+              onClick={() => { setEditingConnection(null); setShowForm(true); }}
+              className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              + Add Connection
+            </button>
+          )}
+        </div>
       </div>
 
-      <ConnectionForm onSave={onSave} onTest={handleTest} onCancel={() => {}} />
+      {showForm && (
+        <ConnectionForm
+          initialData={editingConnection || undefined}
+          onSave={handleSave}
+          onTest={handleTest}
+          onCancel={handleCancel}
+        />
+      )}
 
       <h2 className="text-lg font-semibold mb-3">Saved Connections</h2>
       {connections.length === 0 ? (
@@ -304,6 +374,7 @@ export function ConnectionManager({ connections, onSelect, onSave, onDelete, onR
             <ConnectionCard
               key={conn.id}
               connection={conn}
+              onEdit={handleEdit}
               onDelete={onDelete}
               onConnect={onSelect}
             />
