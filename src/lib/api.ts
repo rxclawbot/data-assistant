@@ -7,7 +7,7 @@ export interface ConnectionConfig {
   host: string;
   port: number;
   username: string;
-  password_encrypted: number[];
+  password: string;
   database: string;
   oracle_sid?: string;
   oracle_service_name?: string;
