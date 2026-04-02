@@ -4,15 +4,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![
-            data_assistant_lib::db::connection::test_connection,
-            data_assistant_lib::db::connection::get_tables,
-            data_assistant_lib::db::metadata::get_table_metadata,
-            data_assistant_lib::ai::client::generate_sql,
-            data_assistant_lib::db::connection::save_connection,
-            data_assistant_lib::db::connection::load_connections,
-            data_assistant_lib::db::connection::delete_connection,
-        ])
+        .invoke_handler(tauri::generate_handler![])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
