@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api, ConnectionConfig, TableInfo, TableMetadata } from "../lib/api";
 
 interface TableListProps {
@@ -20,11 +20,7 @@ export function TableList({
   const [search, setSearch] = useState("");
   const [tableMetadata, setTableMetadata] = useState<Record<string, TableMetadata>>({});
 
-  useEffect(() => {
-    loadTables();
-  }, [connection]);
-
-  const loadTables = async () => {
+  const loadTables = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -35,7 +31,11 @@ export function TableList({
     } finally {
       setLoading(false);
     }
-  };
+  }, [connection]);
+
+  useEffect(() => {
+    loadTables();
+  }, [loadTables]);
 
   const filteredTables = tables.filter((t) =>
     t.name.toLowerCase().includes(search.toLowerCase())
@@ -56,7 +56,7 @@ export function TableList({
     }
     try {
       const metadata = await api.getTableMetadata(connection, tableName);
-      setTableMetadata({ ...tableMetadata, [tableName]: metadata });
+      setTableMetadata(prev => ({ ...prev, [tableName]: metadata }));
       onSelectTable(tableName, metadata);
     } catch (e) {
       setError(`Failed to load metadata: ${e}`);
