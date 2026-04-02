@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::App;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabaseType {
@@ -28,7 +27,17 @@ pub struct TableInfo {
     pub owner: Option<String>,
 }
 
-fn get_connections_file_path(app: &App) -> PathBuf {
+/// Build Oracle connection string using priority: oracle_service_name > oracle_sid > database
+pub fn build_oracle_conn_str(config: &ConnectionConfig) -> String {
+    let service = config
+        .oracle_service_name
+        .as_deref()
+        .or(config.oracle_sid.as_deref())
+        .unwrap_or(&config.database);
+    format!("//{}:{}/{}", config.host, config.port, service)
+}
+
+fn get_connections_file_path(app: &tauri::App) -> PathBuf {
     let app_data = app
         .path()
         .app_data_dir()
@@ -68,11 +77,7 @@ fn save_connections_to_file(connections: &[ConnectionConfig]) -> Result<(), Stri
 fn test_oracle_connection(config: &ConnectionConfig, password: &str) -> Result<bool, String> {
     use oracle::Connection;
 
-    let oracle_sid = config.oracle_sid.as_deref().unwrap_or("ORCL");
-    let dsn = format!(
-        "//{}:{}/{}",
-        config.host, config.port, config.oracle_sid.as_ref().unwrap_or(&oracle_sid.to_string())
-    );
+    let dsn = build_oracle_conn_str(config);
 
     Connection::connect(&config.username, password, &dsn)
         .map(|conn| {
@@ -129,11 +134,7 @@ pub async fn test_connection(config: ConnectionConfig) -> Result<bool, String> {
 fn get_oracle_tables(config: &ConnectionConfig, password: &str) -> Result<Vec<TableInfo>, String> {
     use oracle::Connection;
 
-    let oracle_sid = config.oracle_sid.as_deref().unwrap_or("ORCL");
-    let dsn = format!(
-        "//{}:{}/{}",
-        config.host, config.port, config.oracle_sid.as_ref().unwrap_or(&oracle_sid.to_string())
-    );
+    let dsn = build_oracle_conn_str(config);
 
     let conn = Connection::connect(&config.username, password, &dsn)
         .map_err(|e| format!("Oracle connection failed: {}", e))?;
@@ -208,7 +209,7 @@ pub async fn get_tables(config: ConnectionConfig) -> Result<Vec<TableInfo>, Stri
 }
 
 #[tauri::command]
-pub async fn save_connection(config: ConnectionConfig, app: App) -> Result<(), String> {
+pub async fn save_connection(config: ConnectionConfig) -> Result<(), String> {
     let mut connections = load_connections_from_file();
 
     // Check if connection with same id exists and update, otherwise add

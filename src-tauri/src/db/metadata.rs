@@ -5,7 +5,7 @@ pub struct ColumnInfo {
     pub name: String,
     pub data_type: String,
     pub nullable: bool,
-    pub key_type: Option<String>,  // PRI, UNI, MUL, or None
+    pub key_constraint: Option<String>,  // PK, FK, UK, or None
     pub default_value: Option<String>,
     pub character_maximum_length: Option<u32>,
     pub numeric_precision: Option<u32>,
@@ -22,16 +22,12 @@ pub struct TableMetadata {
 #[cfg(feature = "oracle-mysql")]
 fn get_oracle_table_metadata(
     config: &crate::db::connection::ConnectionConfig,
-    table_name: &str,
     password: &str,
+    table_name: &str,
 ) -> Result<TableMetadata, String> {
     use oracle::Connection;
 
-    let oracle_sid = config.oracle_sid.as_deref().unwrap_or("ORCL");
-    let dsn = format!(
-        "//{}:{}/{}",
-        config.host, config.port, config.oracle_sid.as_ref().unwrap_or(&oracle_sid.to_string())
-    );
+    let dsn = crate::db::connection::build_oracle_conn_str(config);
 
     let conn = Connection::connect(&config.username, password, &dsn)
         .map_err(|e| format!("Oracle connection failed: {}", e))?;
@@ -73,7 +69,7 @@ fn get_oracle_table_metadata(
                 data_type
             },
             nullable: nullable == "Y",
-            key_type: None,  // Oracle requires separate query for keys
+            key_constraint: None,  // Oracle requires separate query for keys
             default_value: None,
             character_maximum_length: if data_type == "VARCHAR2" || data_type == "CHAR" {
                 data_length
@@ -96,8 +92,8 @@ fn get_oracle_table_metadata(
 #[cfg(not(feature = "oracle-mysql"))]
 fn get_oracle_table_metadata(
     _config: &crate::db::connection::ConnectionConfig,
-    _table_name: &str,
     _password: &str,
+    _table_name: &str,
 ) -> Result<TableMetadata, String> {
     Err("Oracle driver not available. Compile with --features oracle-mysql".to_string())
 }
@@ -132,7 +128,12 @@ fn get_mysql_table_metadata(
             name,
             data_type,
             nullable: nullable == "YES",
-            key_type: if key_type.is_empty() { None } else { Some(key_type) },
+            key_constraint: match key_type.as_str() {
+                "PRI" => Some("PK".to_string()),
+                "UNI" => Some("UK".to_string()),
+                "MUL" => Some("FK".to_string()),
+                _ => None,
+            },
             default_value: default_value,
             character_maximum_length: char_max_len,
             numeric_precision: num_precision,
@@ -167,7 +168,7 @@ pub async fn get_table_metadata(
 
     match config.db_type {
         crate::db::connection::DatabaseType::Oracle => {
-            get_oracle_table_metadata(&config, &table_name, &decrypted_password)
+            get_oracle_table_metadata(&config, &decrypted_password, &table_name)
         }
         crate::db::connection::DatabaseType::MySQL => {
             get_mysql_table_metadata(&config, &table_name, &decrypted_password)
