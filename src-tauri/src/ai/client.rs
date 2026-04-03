@@ -10,9 +10,16 @@ pub struct AiConfig {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SqlGenerationRequest {
     pub tables_context: String,
     pub user_query: String,
+    pub history: Option<Vec<ChatMessage>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -23,11 +30,10 @@ pub struct SqlGenerationResponse {
 
 pub async fn generate_sql(
     config: &AiConfig,
-    tables_context: &str,
-    user_query: &str,
+    request: &SqlGenerationRequest,
 ) -> Result<SqlGenerationResponse, String> {
     let client = Client::builder()
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(120))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
@@ -41,15 +47,29 @@ pub async fn generate_sql(
          2. Use proper JOIN syntax\n\
          3. Add comments for complex logic\n\
          4. Return only the SQL query without explanation",
-        tables_context
+        request.tables_context
     );
+
+    let mut messages: Vec<serde_json::Value> = vec![
+        json!({"role": "system", "content": system_prompt}),
+    ];
+
+    // Append conversation history
+    if let Some(ref history) = request.history {
+        for msg in history {
+            messages.push(json!({
+                "role": msg.role,
+                "content": msg.content
+            }));
+        }
+    }
+
+    // Current user query
+    messages.push(json!({"role": "user", "content": &request.user_query}));
 
     let request_body = json!({
         "model": config.model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_query}
-        ],
+        "messages": messages,
         "temperature": 0.1
     });
 
@@ -69,10 +89,12 @@ pub async fn generate_sql(
         return Err(format!("API error {}: {}", status, text));
     }
 
-    let parsed: serde_json::Value = response.json().await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+    let body = response.text().await
+        .map_err(|e| format!("Failed to read response body: {}", e))?;
 
-    // Validate response structure
+    let parsed: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("Failed to parse response: {} | body: {}", e, &body[..body.len().min(500)]))?;
+
     let choices = parsed["choices"].as_array()
         .ok_or("Response missing 'choices' array")?;
     let first_choice = choices.first()
@@ -97,10 +119,5 @@ pub async fn generate_sql_command(
     config: AiConfig,
     request: SqlGenerationRequest,
 ) -> Result<SqlGenerationResponse, String> {
-    generate_sql(
-        &config,
-        &request.tables_context,
-        &request.user_query,
-    )
-    .await
+    generate_sql(&config, &request).await
 }

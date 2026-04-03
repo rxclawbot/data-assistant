@@ -36,7 +36,8 @@ pub fn build_oracle_conn_str(config: &ConnectionConfig) -> String {
         .as_deref()
         .or(config.oracle_sid.as_deref())
         .unwrap_or(&config.database);
-    format!("//{}:{}/{}", config.host, config.port, service)
+    // Oracle thin driver format: host:port/service_name (without leading //)
+    format!("{}:{}/{}", config.host, config.port, service)
 }
 
 fn get_connections_file_path(app: &tauri::App) -> PathBuf {
@@ -183,7 +184,7 @@ fn get_mysql_tables(config: &ConnectionConfig, password: &str) -> Result<Vec<Tab
     let result = conn.exec_map(query, (&config.database,), |name: String| {
         TableInfo {
             name,
-            owner: None,
+            owner: Some(config.database.clone()),
         }
     }).map_err(|e| format!("Failed to query tables: {}", e))?;
 
@@ -251,7 +252,7 @@ mod tests {
             oracle_service_name: Some("myservice".to_string()),
         };
         let conn_str = build_oracle_conn_str(&config);
-        assert_eq!(conn_str, "//localhost:1521/myservice");
+        assert_eq!(conn_str, "localhost:1521/myservice");
     }
 
     #[test]
@@ -269,7 +270,7 @@ mod tests {
             oracle_service_name: None,
         };
         let conn_str = build_oracle_conn_str(&config);
-        assert_eq!(conn_str, "//dbhost:1521/ORCL");
+        assert_eq!(conn_str, "dbhost:1521/ORCL");
     }
 
     #[test]
@@ -287,7 +288,7 @@ mod tests {
             oracle_service_name: None,
         };
         let conn_str = build_oracle_conn_str(&config);
-        assert_eq!(conn_str, "//dbhost:1521/defaultdb");
+        assert_eq!(conn_str, "dbhost:1521/defaultdb");
     }
 
     #[test]

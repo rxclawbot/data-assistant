@@ -17,6 +17,10 @@ pub fn run() {
             db::connection::load_connections,
             db::connection::delete_connection,
             crypto::dpapi::encrypt_password_command,
+            db::remarks::load_column_remarks,
+            db::remarks::save_column_remark,
+            db::sessions::load_sessions,
+            db::sessions::save_sessions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

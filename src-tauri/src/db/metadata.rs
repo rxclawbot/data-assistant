@@ -181,7 +181,7 @@ fn get_mysql_table_metadata(
 
     Ok(TableMetadata {
         table_name: table_name.to_string(),
-        owner: None,
+        owner: Some(config.database.clone()),
         columns: result,
     })
 }
@@ -195,7 +195,7 @@ fn get_mysql_table_metadata(
     Err("MySQL driver not available. Compile with --features oracle-mysql".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn get_table_metadata(
     config: crate::db::connection::ConnectionConfig,
     table_name: String,

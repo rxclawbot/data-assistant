@@ -94,8 +94,8 @@ function ConnectionForm({ initialData, onSave, onTest, onCancel }: ConnectionFor
       username: form.username || "",
       password_encrypted: encrypted,
       database: form.database || "",
-      oracle_sid: form.oracle_sid,
-      oracle_service_name: form.oracle_service_name,
+      oracle_sid: form.oracle_sid || undefined,
+      oracle_service_name: form.oracle_service_name || undefined,
     } as ConnectionConfig;
   };
 
@@ -192,28 +192,16 @@ function ConnectionForm({ initialData, onSave, onTest, onCancel }: ConnectionFor
           />
         </div>
         {form.db_type === "Oracle" && (
-          <>
-            <div>
-              <label className="block text-sm font-medium mb-1">Oracle SID</label>
-              <input
-                type="text"
-                className="w-full border rounded px-3 py-2"
-                value={form.oracle_sid}
-                onChange={(e) => setForm((f) => ({ ...f, oracle_sid: e.target.value }))}
-                placeholder="ORCL"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Oracle Service Name</label>
-              <input
-                type="text"
-                className="w-full border rounded px-3 py-2"
-                value={form.oracle_service_name}
-                onChange={(e) => setForm((f) => ({ ...f, oracle_service_name: e.target.value }))}
-                placeholder="myservice.mycompany.com"
-              />
-            </div>
-          </>
+          <div>
+            <label className="block text-sm font-medium mb-1">Oracle Service Name</label>
+            <input
+              type="text"
+              className="w-full border rounded px-3 py-2"
+              value={form.oracle_service_name}
+              onChange={(e) => setForm((f) => ({ ...f, oracle_service_name: e.target.value }))}
+              placeholder="myservice.mycompany.com or ORCL"
+            />
+          </div>
         )}
       </div>
       <div className="mt-4 flex items-center gap-3">

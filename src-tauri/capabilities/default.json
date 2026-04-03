@@ -1,0 +1,17 @@
+{
+  "identifier": "default",
+  "description": "Default capability for Data Assistant",
+  "windows": ["main", "debug"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:webview:default",
+    "core:webview:allow-create-webview-window",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-emit-to",
+    "core:event:allow-listen"
+  ]
+}
