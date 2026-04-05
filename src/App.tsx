@@ -318,6 +318,68 @@ function App() {
     }
   }, [chatMessages, tablesContext, updateActiveSession]);
 
+  const handleDeleteMessage = useCallback((messageId: string) => {
+    updateActiveSession((s) => ({
+      ...s,
+      chat_messages: s.chat_messages.filter((m) => m.id !== messageId),
+    }));
+  }, [updateActiveSession]);
+
+  const handleRegenerate = useCallback(async () => {
+    const lastAssistantIndex = [...chatMessages].reverse().findIndex((m) => m.role === "assistant");
+    if (lastAssistantIndex === -1) return;
+    const actualIndex = chatMessages.length - 1 - lastAssistantIndex;
+    const userMessageBefore = chatMessages.slice(0, actualIndex).filter((m) => m.role === "user").pop();
+
+    const stored = localStorage.getItem(AI_CONFIG_KEY);
+    if (!stored) return;
+    const config: AiConfig = JSON.parse(stored);
+
+    const history: ChatMessage[] = chatMessages.slice(0, actualIndex).map((m) => ({
+      role: m.role,
+      content: m.role === "assistant" ? `SQL:\n${m.content}${m.explanation ? `\n\nExplanation: ${m.explanation}` : ""}` : m.content,
+    }));
+
+    // Remove the last assistant message
+    updateActiveSession((s) => ({
+      ...s,
+      chat_messages: s.chat_messages.slice(0, actualIndex),
+    }));
+    setLoading(true);
+
+    try {
+      const request = { tables_context: tablesContext, user_query: userMessageBefore?.content || "", history };
+      const response = await api.generateSql(config, request);
+      updateActiveSession((s) => ({
+        ...s,
+        chat_messages: [...s.chat_messages, { id: crypto.randomUUID(), role: "assistant", content: response.sql, explanation: response.explanation }],
+      }));
+    } catch (err) {
+      updateActiveSession((s) => ({
+        ...s,
+        chat_messages: [...s.chat_messages, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+      }));
+    } finally {
+      setLoading(false);
+    }
+  }, [chatMessages, tablesContext, updateActiveSession]);
+
+  const handleEditMessage = useCallback((messageId: string, newContent: string) => {
+    const msgIndex = chatMessages.findIndex((m) => m.id === messageId);
+    if (msgIndex === -1) return;
+    const msg = chatMessages[msgIndex];
+    if (msg.role !== "user") return;
+
+    // Remove this message and all subsequent messages
+    updateActiveSession((s) => ({
+      ...s,
+      chat_messages: s.chat_messages.slice(0, msgIndex),
+    }));
+
+    // Trigger resend with updated content
+    setTimeout(() => handleSend(newContent), 0);
+  }, [chatMessages, handleSend, updateActiveSession]);
+
   return (
     <div className="h-screen flex flex-col bg-gray-100">
       {view === "connections" ? (
@@ -464,7 +526,12 @@ function App() {
 
               {/* Chat Messages */}
               <div className="flex-1 overflow-hidden">
-                <SqlResult messages={chatMessages} />
+                <SqlResult
+                  messages={chatMessages}
+                  onDelete={handleDeleteMessage}
+                  onRegenerate={handleRegenerate}
+                  onEdit={handleEditMessage}
+                />
               </div>
 
               {/* Input */}
