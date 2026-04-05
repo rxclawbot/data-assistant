@@ -37,7 +37,7 @@ export interface TableInfo { name: string; owner?: string; }
 export interface ColumnInfo { name: string; data_type: string; nullable: boolean; key_constraint?: string; default_value?: string; }
 export interface TableMetadata { table_name: string; owner?: string; columns: ColumnInfo[]; }
 export interface AiConfig { base_url: string; api_key: string; model: string; }
-export interface ChatMessage { role: "user" | "assistant"; content: string; explanation?: string; }
+export interface ChatMessage { id: string; role: "user" | "assistant"; content: string; explanation?: string; }
 export interface SqlGenerationRequest { tables_context: string; user_query: string; history?: ChatMessage[]; }
 export interface SqlGenerationResponse { sql: string; explanation?: string; }
 
