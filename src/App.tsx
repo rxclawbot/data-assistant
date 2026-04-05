@@ -273,8 +273,8 @@ function App() {
         ...s,
         chat_messages: [
           ...s.chat_messages,
-          { role: "user", content: query },
-          { role: "assistant", content: "Please configure AI settings first.", explanation: undefined },
+          { id: crypto.randomUUID(), role: "user", content: query },
+          { id: crypto.randomUUID(), role: "assistant", content: "Please configure AI settings first.", explanation: undefined },
         ],
       }));
       return;
@@ -294,7 +294,7 @@ function App() {
 
     updateActiveSession((s) => ({
       ...s,
-      chat_messages: [...s.chat_messages, { role: "user", content: query }],
+      chat_messages: [...s.chat_messages, { id: crypto.randomUUID(), role: "user", content: query }],
     }));
     setLoading(true);
 
@@ -306,12 +306,12 @@ function App() {
       addDebugLog("generate_sql_response", response);
       updateActiveSession((s) => ({
         ...s,
-        chat_messages: [...s.chat_messages, { role: "assistant", content: response.sql, explanation: response.explanation }],
+        chat_messages: [...s.chat_messages, { id: crypto.randomUUID(), role: "assistant", content: response.sql, explanation: response.explanation }],
       }));
     } catch (err) {
       updateActiveSession((s) => ({
         ...s,
-        chat_messages: [...s.chat_messages, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+        chat_messages: [...s.chat_messages, { id: crypto.randomUUID(), role: "assistant", content: `Error: ${err instanceof Error ? err.message : String(err)}` }],
       }));
     } finally {
       setLoading(false);
