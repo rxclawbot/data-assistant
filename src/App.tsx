@@ -288,6 +288,7 @@ function App() {
     }
 
     const history: ChatMessage[] = chatMessages.map((m) => ({
+      id: "",
       role: m.role,
       content: m.role === "assistant" ? `SQL:\n${m.content}${m.explanation ? `\n\nExplanation: ${m.explanation}` : ""}` : m.content,
     }));
@@ -336,11 +337,11 @@ function App() {
     const config: AiConfig = JSON.parse(stored);
 
     const history: ChatMessage[] = chatMessages.slice(0, actualIndex).map((m) => ({
+      id: "",
       role: m.role,
       content: m.role === "assistant" ? `SQL:\n${m.content}${m.explanation ? `\n\nExplanation: ${m.explanation}` : ""}` : m.content,
     }));
 
-    // Remove the last assistant message
     updateActiveSession((s) => ({
       ...s,
       chat_messages: s.chat_messages.slice(0, actualIndex),
@@ -370,13 +371,11 @@ function App() {
     const msg = chatMessages[msgIndex];
     if (msg.role !== "user") return;
 
-    // Remove this message and all subsequent messages
     updateActiveSession((s) => ({
       ...s,
       chat_messages: s.chat_messages.slice(0, msgIndex),
     }));
 
-    // Trigger resend with updated content
     setTimeout(() => handleSend(newContent), 0);
   }, [chatMessages, handleSend, updateActiveSession]);
 

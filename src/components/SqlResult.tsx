@@ -8,44 +8,6 @@ interface SqlResultProps {
   onEdit: (messageId: string, newContent: string) => void;
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore
-    }
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex items-center gap-1 rounded border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-    >
-      {copied ? (
-        <>
-          <svg className="h-3 w-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Copied!
-        </>
-      ) : (
-        <>
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Copy
-        </>
-      )}
-    </button>
-  );
-}
-
 export function SqlResult({ messages, onDelete, onRegenerate, onEdit }: SqlResultProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -73,11 +35,11 @@ export function SqlResult({ messages, onDelete, onRegenerate, onEdit }: SqlResul
         return isUser ? (
           <div
             key={msg.id}
-            className="flex justify-end"
+            className="flex flex-col items-end gap-1"
             onMouseEnter={() => setHoveredId(msg.id)}
-            onMouseLeave={() => { setHoveredId(null); }}
+            onMouseLeave={() => setHoveredId(null)}
           >
-            <div className="max-w-[80%] rounded-lg bg-blue-600 px-4 py-2 text-sm text-white relative">
+            <div className="max-w-[80%] rounded-lg bg-blue-600 px-4 py-2 text-sm text-white">
               {editingId === msg.id ? (
                 <div className="flex flex-col gap-2">
                   <textarea
@@ -89,7 +51,7 @@ export function SqlResult({ messages, onDelete, onRegenerate, onEdit }: SqlResul
                   />
                   <div className="flex gap-2 justify-end">
                     <button
-                      onClick={() => { setEditingId(null); }}
+                      onClick={() => setEditingId(null)}
                       className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
                     >
                       Cancel
@@ -105,37 +67,37 @@ export function SqlResult({ messages, onDelete, onRegenerate, onEdit }: SqlResul
               ) : (
                 <span>{msg.content}</span>
               )}
-              {hoveredId === msg.id && editingId !== msg.id && (
-                <div className="flex gap-1 absolute bottom-full right-0 mb-1">
-                  <button
-                    onClick={() => { setEditingId(msg.id); setEditContent(msg.content); }}
-                    className="p-1 bg-white rounded shadow text-gray-600 hover:bg-gray-100"
-                    title="Edit"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => onDelete(msg.id)}
-                    className="p-1 bg-white rounded shadow text-gray-600 hover:bg-gray-100"
-                    title="Delete"
-                  >
-                    🗑️
-                  </button>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(msg.content)}
-                    className="p-1 bg-white rounded shadow text-gray-600 hover:bg-gray-100"
-                    title="Copy"
-                  >
-                    📋
-                  </button>
-                </div>
-              )}
             </div>
+            {hoveredId === msg.id && editingId !== msg.id && (
+              <div className="flex gap-1">
+                <button
+                  onClick={() => { setEditingId(msg.id); setEditContent(msg.content); }}
+                  className="p-1 bg-white rounded shadow text-gray-600 hover:bg-gray-100 text-xs"
+                  title="Edit"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => onDelete(msg.id)}
+                  className="p-1 bg-white rounded shadow text-gray-600 hover:bg-gray-100 text-xs"
+                  title="Delete"
+                >
+                  🗑️
+                </button>
+                <button
+                  onClick={() => navigator.clipboard.writeText(msg.content)}
+                  className="p-1 bg-white rounded shadow text-gray-600 hover:bg-gray-100 text-xs"
+                  title="Copy"
+                >
+                  📋
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div
             key={msg.id}
-            className="flex flex-col gap-2"
+            className="flex flex-col items-start gap-1"
             onMouseEnter={() => setHoveredId(msg.id)}
             onMouseLeave={() => setHoveredId(null)}
           >
@@ -144,38 +106,36 @@ export function SqlResult({ messages, onDelete, onRegenerate, onEdit }: SqlResul
                 <p className="text-sm text-blue-900 whitespace-pre-wrap">{msg.explanation}</p>
               </div>
             )}
-            <div>
+            <div className="w-full">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-xs font-medium text-gray-500">SQL</span>
-                <div className="flex gap-1">
-                  {hoveredId === msg.id && (
-                    <>
-                      {isLastAssistant && (
-                        <button
-                          onClick={onRegenerate}
-                          className="p-1 bg-gray-100 rounded shadow text-gray-600 hover:bg-gray-200"
-                          title="Regenerate"
-                        >
-                          🔄
-                        </button>
-                      )}
+                {hoveredId === msg.id && (
+                  <div className="flex gap-1">
+                    {isLastAssistant && (
                       <button
-                        onClick={() => onDelete(msg.id)}
-                        className="p-1 bg-gray-100 rounded shadow text-gray-600 hover:bg-gray-200"
-                        title="Delete"
+                        onClick={onRegenerate}
+                        className="p-1 bg-gray-100 rounded shadow text-gray-600 hover:bg-gray-200 text-xs"
+                        title="Regenerate"
                       >
-                        🗑️
+                        🔄
                       </button>
-                    </>
-                  )}
-                  <button
-                    onClick={() => navigator.clipboard.writeText(msg.content)}
-                    className="p-1 bg-gray-100 rounded shadow text-gray-600 hover:bg-gray-200"
-                    title="Copy"
-                  >
-                    📋
-                  </button>
-                </div>
+                    )}
+                    <button
+                      onClick={() => onDelete(msg.id)}
+                      className="p-1 bg-gray-100 rounded shadow text-gray-600 hover:bg-gray-200 text-xs"
+                      title="Delete"
+                    >
+                      🗑️
+                    </button>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(msg.content)}
+                      className="p-1 bg-gray-100 rounded shadow text-gray-600 hover:bg-gray-200 text-xs"
+                      title="Copy"
+                    >
+                      📋
+                    </button>
+                  </div>
+                )}
               </div>
               <pre className="overflow-x-auto rounded-md bg-gray-900 p-4 text-sm text-gray-100">
                 {msg.content}
